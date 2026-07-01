@@ -127,6 +127,12 @@
     width:30px;height:30px;cursor:pointer;font-size:15px;opacity:.6;line-height:1;transition:opacity .15s,transform .15s;box-shadow:var(--shadow-sm);}
   .pinbtn:hover{opacity:1;transform:scale(1.1);}
   .pinbtn.on{opacity:1;background:var(--butter);}
+  .editbtn{position:absolute;bottom:8px;right:44px;background:rgba(255,255,255,.92);border:none;border-radius:50%;
+    width:30px;height:30px;cursor:pointer;font-size:14px;opacity:.6;line-height:1;box-shadow:var(--shadow-sm);transition:opacity .15s,transform .15s;}
+  .editbtn:hover{opacity:1;transform:scale(1.1);}
+  .revertbtn{position:absolute;bottom:8px;right:80px;background:rgba(255,255,255,.92);border:none;border-radius:50%;
+    width:30px;height:30px;cursor:pointer;font-size:14px;opacity:.55;line-height:1;box-shadow:var(--shadow-sm);transition:opacity .15s,transform .15s;}
+  .revertbtn:hover{opacity:1;transform:scale(1.1);}
   .delbtn{position:absolute;bottom:8px;left:8px;background:rgba(255,255,255,.92);border:none;border-radius:50%;
     width:28px;height:28px;cursor:pointer;font-size:13px;opacity:.5;box-shadow:var(--shadow-sm);}
   .delbtn:hover{opacity:1;color:var(--coral-deep);}
@@ -380,6 +386,7 @@
 </div>
 
 <div class="toast" id="toast"></div>
+<input type="file" id="thumbInput" accept="image/*" style="display:none">
 
 <div class="vid-ov" id="videoOverlay">
   <div class="vid-card">
@@ -558,12 +565,12 @@ const BUILTIN_THUMBS = [
 
 // Shared tutorial videos everyone sees. Each: {name, cat, url}
 const STARTER_VIDEOS = [
-  {name:'Tutorial — @hbgoodie',        cat:'misc', url:'https://www.tiktok.com/@hbgoodie/video/7641632969240759582'},
-  {name:'Tutorial — @elemencita',      cat:'misc', url:'https://www.tiktok.com/@elemencita/video/7649600184753736991'},
-  {name:'Photo guide — @michv98',      cat:'misc', url:'https://www.tiktok.com/@michv98/photo/7614288897740164365'},
-  {name:'Tutorial — @shopanxsty',      cat:'misc', url:'https://www.tiktok.com/@shopanxsty/video/7532645711595261197'},
-  {name:'Photo guide — @juliacheresko',cat:'misc', url:'https://www.tiktok.com/@juliacheresko/photo/7588680218328468766'},
-  {name:'Tutorial — @brittanyuranich', cat:'misc', url:'https://www.tiktok.com/@brittanyuranich/video/7572380063094607135'},
+  {name:'Seashell Suncatcher',        cat:'home',  url:'https://www.tiktok.com/@hbgoodie/video/7641632969240759582'},
+  {name:'Fairy Bubble Wand',          cat:'bead',  url:'https://www.tiktok.com/@elemencita/video/7649600184753736991'},
+  {name:'Dollar Tree Crafts',         cat:'misc',  url:'https://www.tiktok.com/@michv98/photo/7614288897740164365'},
+  {name:'Fish Lighter Case',          cat:'sew',   url:'https://www.tiktok.com/@shopanxsty/video/7532645711595261197'},
+  {name:'Home Whimsy DIYs',           cat:'home',  url:'https://www.tiktok.com/@juliacheresko/photo/7588680218328468766'},
+  {name:'Gingerbread Man Paper Garland', cat:'paper', url:'https://www.tiktok.com/@brittanyuranich/video/7572380063094607135'},
 ];
 
 // Pull the numeric post id out of a TikTok link (video OR photo), or accept a bare id.
@@ -643,6 +650,10 @@ function setStatus(id,st){ state.projects[id]=Object.assign({},state.projects[id
 function setNote(id,t){ state.projects[id]=Object.assign({},state.projects[id],{note:t}); save(); }
 function itemById(id){ return ITEMS.find(x=>x.id===id); }
 function nameOf(it){ const o=(state.projects[it.id]||{}).name; return (o&&o.trim())?o:it.name; }
+function imgOf(it){ const o=(state.projects[it.id]||{}).img; return o||it.img||null; }
+function hasImgOverride(id){ return !!(state.projects[id]||{}).img; }
+function setImg(id,data){ state.projects[id]=Object.assign({},state.projects[id],{img:data}); save(); }
+function clearImg(id){ if(state.projects[id]) delete state.projects[id].img; save(); renderGrid(); toast('Photo reset'); }
 function displayName(id){ const it=itemById(id); return it?nameOf(it):''; }
 function setName(id,n){
   n=(n||'').trim();
@@ -701,10 +712,13 @@ function renderGrid(){
   grid.innerHTML=list.map(it=>{
     const st=statusOf(it.id), note=noteOf(it.id), pinned=state.focus===it.id;
     const isCustom=it.id[0]==='u';
-    const pic = it.img ? `<img src="${it.img}" alt="" loading="lazy">`
-                       : `<div class="ph${it.vid?' vid':''}">${it.vid?'▶':CATS[it.cat].emoji}</div>`;
+    const img=imgOf(it);
+    const pic = img ? `<img src="${img}" alt="" loading="lazy">`
+                    : `<div class="ph${it.vid?' vid':''}">${it.vid?'▶':CATS[it.cat].emoji}</div>`;
     const playOverlay = it.vid ? `<button class="playover" data-watch="${it.id}" title="Watch tutorial">▶</button>` : '';
     const watchBtn = it.vid ? `<button class="watch" data-watch="${it.id}">▶ Watch tutorial</button>` : '';
+    const editBtn = `<button class="editbtn" data-edit="${it.id}" title="${img?'Change photo':'Add a photo'}">✎</button>`;
+    const revertBtn = hasImgOverride(it.id) ? `<button class="revertbtn" data-revert="${it.id}" title="Reset photo">↺</button>` : '';
     const noteHtml = note ? `<div class="note" data-note="${it.id}">${esc(note)}</div>`
                           : `<div class="note empty" data-note="${it.id}">+ add a note</div>`;
     return `<div class="proj ${st}">
@@ -713,6 +727,8 @@ function renderGrid(){
         ${playOverlay}
         <span class="badge">${CATS[it.cat].emoji} ${CATS[it.cat].label}</span>
         <span class="donestamp">✓</span>
+        ${editBtn}
+        ${revertBtn}
         <button class="pinbtn ${pinned?'on':''}" data-pin="${it.id}" title="Pin as focus">📌</button>
         ${isCustom?`<button class="delbtn" data-del="${it.id}" title="Remove">🗑</button>`:''}
       </div>
@@ -734,6 +750,8 @@ function renderGrid(){
   grid.querySelectorAll('.delbtn').forEach(b=>b.addEventListener('click',()=>removeCustom(b.dataset.del)));
   grid.querySelectorAll('[data-watch]').forEach(b=>b.addEventListener('click',()=>openVideo(b.dataset.watch)));
   grid.querySelectorAll('[data-rename]').forEach(n=>n.addEventListener('click',()=>renameItem(n.dataset.rename)));
+  grid.querySelectorAll('[data-edit]').forEach(b=>b.addEventListener('click',()=>pickThumb(b.dataset.edit)));
+  grid.querySelectorAll('[data-revert]').forEach(b=>b.addEventListener('click',()=>clearImg(b.dataset.revert)));
 }
 function renameItem(id){
   const it=itemById(id); if(!it)return;
@@ -883,6 +901,19 @@ function closeVideo(){
 document.getElementById('videoClose').addEventListener('click',closeVideo);
 document.getElementById('videoOverlay').addEventListener('click',e=>{ if(e.target.id==='videoOverlay') closeVideo(); });
 document.addEventListener('keydown',e=>{ if(e.key==='Escape') closeVideo(); });
+
+// ---------- Edit card photo ----------
+let pendingThumbId=null;
+function pickThumb(id){ pendingThumbId=id; document.getElementById('thumbInput').click(); }
+document.getElementById('thumbInput').addEventListener('change',e=>{
+  const f=e.target.files[0], id=pendingThumbId;
+  pendingThumbId=null; e.target.value='';
+  if(!f||!id) return;
+  downscaleImage(f,(data)=>{
+    if(!data){ toast('Could not read that image'); return; }
+    setImg(id,data); renderGrid(); toast('Thumbnail updated');
+  });
+});
 
 // ---------- Wire up ----------
 document.getElementById('surpriseBtn').addEventListener('click',surprise);
